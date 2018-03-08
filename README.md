@@ -55,7 +55,7 @@ Ale nie można zrobić tak:
     template<>
     void Widget<T>::foo(double) {} //ERROR! Np. w Clangu: "cannot specialize (with 'template<>') a member of an unspecialized template"
 
-Pełna specjalizacja w class scope (wewnątrz klasy) powinna być możliwa, ale nie kompiluje tego ani GCC, ani Clang, natomiast MSVC już tak. Workaroundem dla GCC/Clang jest wrzucenie `foo` do zagnieżdżonej struktury i częściowa specjalizacja tej struktury. Częściową specjalizację GCC/Clang skompiluje, bo w wyniku niespójności w standardzie była ona dopuszczona w class scope już w starych wersjach C+\+ - naprawia to CWG 727 (dopuszcza nie tylko częściowe, ale też i pełne specjalizacje w class scope). Przykład workarounda:
+Pełna specjalizacja w class scope (wewnątrz klasy) powinna być możliwa, ale nie kompiluje tego ani GCC, ani Clang, natomiast MSVC już tak. Workaroundem dla GCC/Clang jest wrzucenie `foo` do zagnieżdżonej struktury i częściowa specjalizacja tej struktury. Częściową specjalizację GCC/Clang skompiluje, bo była ona dopuszczona w class scope już w starych wersjach C+\+ - naprawia to CWG 727 (dopuszcza nie tylko częściowe, ale też i pełne specjalizacje w class scope). Przykład workarounda:
 
     template<typename T>
     struct Widget
