@@ -382,4 +382,22 @@ Widget w1;
 Widget w2(w1); //wywoła zwykły konstruktor kopiujący
 ```
 
-Dodanie `Widget(Widget const&) = delete;` nie jest rozwiązaniem - membery oznaczone jako `delete` nadal uczestniczą w overload resolution, więc `Widget w2(w1)` się nie skompiluje. Problem można rozwiązać przy pomocy triku: dodając `Widget(Widget const volatile&) = delete;` do klasy `Widget`. Ma to dwa skutki: oznacza konstruktor kopiujący przyjmujący `Widget const volatile` jako `delete` oraz, co nas bardziej interesuje, zapobiega wygenerowaniu zwykłego konstruktora kopiującego (nie ma go w zbiorze overloadów).
+Dodanie `Widget(Widget const&) = delete;` nie jest rozwiązaniem - membery oznaczone jako `delete` nadal uczestniczą w overload resolution, więc `Widget w2(w1)` się nie skompiluje. Problem można rozwiązać przy pomocy triku: dodając `Widget(Widget const volatile&) = delete;` do klasy `Widget`. Ma to dwa skutki: oznacza konstruktor kopiujący przyjmujący `Widget const volatile` jako `delete` oraz, co nas bardziej interesuje, zapobiega wygenerowaniu zwykłego konstruktora kopiującego (nie ma go w zbiorze overloadów):
+
+```cpp
+struct Widget
+{
+    Widget() = default;
+        
+    template<typename T>
+    Widget(T const&)
+    {
+        std::cout << "template constructor\n";
+    }
+    
+    Widget(Widget const volatile&) = delete;
+};
+
+Widget w1;
+Widget w2(w1); //wywoła konstruktor szablonowy
+```
