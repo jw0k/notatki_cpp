@@ -308,7 +308,7 @@ int main()
 }
 ```
 
-Zdecydowano, że domyślnie ten ficzer jeset wyłączony i trzeba go świadomie włączyć (opt-in) używając `std::less<>` albo pisząc swój komparator, w którym istnieje typ `is_transparent` (dowolny, niekoniecznie void). Taka decyzja podyktowana jest tym, że ten ficzer zmienia zachowanie istniejącego kodu, np:
+Zdecydowano, że domyślnie ten ficzer jest wyłączony i trzeba go świadomie włączyć (opt-in) używając `std::less<>` albo pisząc swój komparator, w którym istnieje typ `is_transparent` (dowolny, niekoniecznie void). Taka decyzja podyktowana jest tym, że ten ficzer zmienia zachowanie istniejącego kodu, np:
 
 ```cpp
 std::set<std::string> s = /* ... */;
@@ -318,3 +318,68 @@ s.find("key");
 Bez transparentnego komparatora nastąpi tutaj konstrukcja tymczasowego obiektu `std::string` przy pomocy `"key"`. Następnie ten tymczasowy obiekt będzie użyty do wszystkich porównań. Natomiast w przypadku transparentnego komparatora, `find` przekaże `"key"` bez żadnej konwersji do komparatora. Konwersja do `std::string` nastąpi dopiero w komparatorze, wielokrotnie, przy każdym porównaniu. LWG uznało to za poważny problem performance'owy.
 
 Nazwa `is_transparent` nie jest zbyt szczęśliwa, lepszy by była `is_polymorphic` - taki komparator działa dla różnych typów, więc jest to rodzaj polimorfizmu (statycznego). Niestety `is_polymorphic` występuje już w bibliotece standardowej.
+
+## Too perfect forwarding
+
+Gdy zachodzi potrzeba, by nasza klasa miała konstruktor, który przyjmuje pewną wartość i przekazuje dalej jej kategorię wartości (lvalue/rvalue), zazwyczaj używamy perfect forwardingu:
+
+```cpp
+struct Widget
+{
+    Widget() = default;
+    
+    template<typename T>
+    Widget(T&&)
+    {
+        std::cout << "template constructor\n";
+    }
+};
+```
+
+Rodzi to powien problem: nasz konstruktor może się również odpalić, gdy `T == Widget`, lub `T == Widget&`. Taki szablonowy konstruktor forwardujący nie powoduje, że kompilator przestanie generować zwykły konstruktor kopiujący/przenoszący - `Widget` posiada wygenerowany konstruktor kopiujący: `Widget(Widget const&)`. Konstruktor domyślny jest jednak suppressowany, a ze względu na to, że przyda się w tym przykładzie, został zadeklarowany jako `= default`.
+
+Zasady overload resolution konstruktorów mogą zaskakiwać:
+
+```cpp
+Widget w1;
+Widget w2(w1); //wywoła konstruktor szablonowy!
+```
+
+W powyższym przykładzie **konstruktor szablonowy jest lepszym dopasowaniem**, ponieważ nie wymaga konwersji z `Widget` do `Widget const`, tak jak konstruktor kopiujący. Z kolei `Widget const` **bardziej pasuje do zwykłego konstruktora kopiującego**:
+
+```cpp
+Widget const w1;
+Widget w2(w1); //wywoła konstruktor kopiujący
+```
+
+Jeśli nie chcemy, żeby szablonowy konstruktor był wybierany gdy `T == Widget&`, możemy zadeklarować dwa konstruktory kopiujące: `Widget(Widget const&){}` oraz `Widget(Widget&){}`. Oba z nich są lepszym dopasowaniem niż konstruktor szablonowy. Jednak problem nadal występuje, gdy spróbujemy wywołać konstruktor kopiujący podając mu obiekt klasy, która dziedziczy po `Widget` - wtedy znowu zostanie wybrany konstruktor szablonowy.
+
+Lepszym rozwiązaniem jest ograniczenie typów jakie może przyjmować szablon. Robi się to poprzez `requires` (od C++20) albo SFINAE (np. `std::enable_if`). Przykładowo, jeśli chcemy przyjmować tylko typy stringopodobne:
+
+```cpp
+template<typename T, typename = std::enable_if_t<std::is_convertible_v<T,std::string>>>
+Widget(T&&)
+{
+    std::cout << "template constructor\n";
+}
+```
+
+Czasem jednak zachodzi potrzeba, by mieć szablonowy konstruktor kopiujący, który jest zawsze preferowany. W poniższym przykładzie zwykły konstruktor kopiujący, tak jak poprzednio, będzie zawsze lepszym dopasowaniem niż szablonowy:
+
+```cpp
+struct Widget
+{
+    Widget() = default;
+        
+    template<typename T>
+    Widget(T const&)
+    {
+        std::cout << "template constructor\n";
+    }
+};
+
+Widget w1;
+Widget w2(w1); //wywoła zwykły konstruktor kopiujący
+```
+
+Dodanie `Widget(Widget const&) = delete;` nie jest rozwiązaniem - membery oznaczone jako `delete` nadal uczestniczą w overload resolution, więc `Widget w2(w1)` się nie skompiluje. Problem można rozwiązać przy pomocy triku: dodając `Widget(Widget const volatile&) = delete;` do klasy `Widget`. Ma to dwa skutki: oznacza konstruktor kopiujący przyjmujący `Widget const volatile` jako `delete` oraz, co nas bardziej interesuje, zapobiega wygenerowaniu zwykłego konstruktora kopiującego (nie ma go w zbiorze overloadów).
