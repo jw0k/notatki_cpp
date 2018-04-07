@@ -401,3 +401,25 @@ struct Widget
 Widget w1;
 Widget w2(w1); //wywoła konstruktor szablonowy
 ```
+
+## Tablice butwieją do prvalue wskaźników
+
+Tablica elementów typu T konwertuje się (butwieje*) do wskaźnika-na-T na pierwszy element. W wyniku tej konwersji powstaje wyrażenie, którego kategorią wartości jest **prvalue**. Przykładowo:
+
+```cpp
+void bar(int (*&))
+{
+}
+
+void bar(int (*&&))
+{
+}
+
+int a[5];
+bar(a); //wywoła bar(int (*&&))
+```
+
+Takie samo zachowanie można zaobserwować dla string literali, które są niczym innym jak N-elementową tablicą `char const`'ów, gdzie N jest liczbą znaków plus 1. Warto też wiedzieć, że wyrażenie będące string literalem ma kategorię wartości **lvalue**. Po zbutwieniu staje się jednak prvalue wskaźnikiem.
+
+
+\*Tak sobie przetłumaczyłem angielskie *decay*. Handluj z tym.
